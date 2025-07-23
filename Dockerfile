@@ -1,19 +1,18 @@
-FROM mambaorg/micromamba:2.3.0-debian11
+FROM posit/r-base:4.3.3-noble
 
-WORKDIR /methylasso
+RUN apt update && apt install -y wget unzip
+RUN wget https://github.com/bardetlab/methylasso/archive/refs/heads/main.zip && unzip main.zip && rm main.zip
 
-USER root
-RUN apt -y update && apt install -y git
-RUN git clone -b v1.0.0 https://github.com/bardetlab/methylasso .
+WORKDIR methylasso-main
 
-RUN micromamba install -y -n base -f conda_env.yml \
-    && micromamba install -y -n base gcc gxx conda-forge::procps-ng \
-    && micromamba env export --name base --explicit > environment.lock \
-    && echo ">> CONDA_LOCK_START" \
-    && cat environment.lock \
-    && echo "<< CONDA_LOCK_END" \
-    && micromamba clean -a -y
-# USER root
-ENV PATH="$MAMBA_ROOT_PREFIX/bin:$PATH"
+RUN Rscript -e 'options(repos = c(binary = "https://packagemanager.rstudio.com/all/__linux__/noble/latest",CRAN = "https://packagemanager.posit.co/cran/2024-12-12")); install.packages(c("Rcpp", "RcppEigen", "BH", "RcppGSL", "doParallel", "ggrepel", "data.table", "foreach", "ggplot2", "scales", "matrix", "matrixstats", "R.utils", "stringr"), binary=T)'
 
-RUN R CMD INSTALL --preclean .
+RUN Rscript -e "install.packages('https://cran.r-project.org/src/contrib/Archive/Matrix/Matrix_1.6-5.tar.gz', repos = NULL)"
+RUN Rscript -e "install.packages('https://cran.r-project.org/src/contrib/Archive/matrixStats/matrixStats_1.3.0.tar.gz', repos = NULL)"
+
+RUN apt install -y libgsl-dev libgsl27
+RUN ln -s /usr/lib/x86_64-linux-gnu/libgsl.so.27.0.0 /usr/lib/x86_64-linux-gnu/libgsl.so.19
+
+RUN R CMD INSTALL .
+
+ENTRYPOINT ["Rscript", "/methylasso-main/MethyLasso.R"]
